@@ -1,0 +1,34 @@
+{
+  "name": "operator-inbox",
+  "version": "1.0.0",
+  "description": "A lightweight workflow inbox for marketers, product builders, and solo operators to capture ideas, priorities, and active work in one place.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/olakunleaikulola/operator-inbox.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/olakunleaikulola/operator-inbox/issues"
+  },
+  "homepage": "https://github.com/olakunleaikulola/operator-inbox#readme",
+  "dependencies": {
+    "next": "^16.1.6",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "25.3.5",
+    "@types/react": "19.2.14",
+    "typescript": "5.9.3"
+  }
+}
