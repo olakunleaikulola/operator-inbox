@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 type Category = "marketing" | "product" | "research" | "learning"
 type Status = "inbox" | "active" | "paused" | "done"
@@ -13,32 +13,61 @@ type InboxItem = {
   status: Status
 }
 
+const STORAGE_KEY = "operator-inbox-items"
+
+const defaultItems: InboxItem[] = [
+  {
+    id: 1,
+    title: "Audit personal website ideas",
+    category: "product",
+    status: "active",
+  },
+  {
+    id: 2,
+    title: "Outline SEO tool concepts",
+    category: "marketing",
+    status: "inbox",
+  },
+  {
+    id: 3,
+    title: "Review AI workflow patterns",
+    category: "research",
+    status: "paused",
+  },
+]
+
 export default function HomePage() {
   const [title, setTitle] = useState("")
   const [category, setCategory] = useState<Category>("marketing")
   const [status, setStatus] = useState<Status>("inbox")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
+  const [items, setItems] = useState<InboxItem[]>([])
+  const [hasLoadedItems, setHasLoadedItems] = useState(false)
 
-  const [items, setItems] = useState<InboxItem[]>([
-    {
-      id: 1,
-      title: "Audit personal website ideas",
-      category: "product",
-      status: "active",
-    },
-    {
-      id: 2,
-      title: "Outline SEO tool concepts",
-      category: "marketing",
-      status: "inbox",
-    },
-    {
-      id: 3,
-      title: "Review AI workflow patterns",
-      category: "research",
-      status: "paused",
-    },
-  ])
+  useEffect(() => {
+    const savedItems = window.localStorage.getItem(STORAGE_KEY)
+
+    if (!savedItems) {
+      setItems(defaultItems)
+      setHasLoadedItems(true)
+      return
+    }
+
+    try {
+      const parsedItems = JSON.parse(savedItems) as InboxItem[]
+      setItems(parsedItems)
+    } catch {
+      setItems(defaultItems)
+    }
+
+    setHasLoadedItems(true)
+  }, [])
+
+  useEffect(() => {
+    if (!hasLoadedItems) return
+
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
+  }, [items, hasLoadedItems])
 
   function handleAddItem(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -54,14 +83,24 @@ export default function HomePage() {
       status,
     }
 
-    setItems([newItem, ...items])
+    setItems((currentItems) => [newItem, ...currentItems])
     setTitle("")
     setCategory("marketing")
     setStatus("inbox")
   }
 
   function handleDeleteItem(id: number) {
-    setItems(items.filter((item) => item.id !== id))
+    setItems((currentItems) =>
+      currentItems.filter((item) => item.id !== id)
+    )
+  }
+
+  function handleStatusChange(id: number, nextStatus: Status) {
+    setItems((currentItems) =>
+      currentItems.map((item) =>
+        item.id === id ? { ...item, status: nextStatus } : item
+      )
+    )
   }
 
   const filteredItems = useMemo(() => {
@@ -150,7 +189,9 @@ export default function HomePage() {
           </div>
 
           <div className="itemList">
-            {filteredItems.length === 0 ? (
+            {!hasLoadedItems ? (
+              <p>Loading items...</p>
+            ) : filteredItems.length === 0 ? (
               <p>No items found for this filter.</p>
             ) : (
               filteredItems.map((item) => (
@@ -159,9 +200,24 @@ export default function HomePage() {
                   <p>
                     <strong>Category:</strong> {item.category}
                   </p>
-                  <p>
-                    <strong>Status:</strong> {item.status}
-                  </p>
+
+                  <div className="statusRow">
+                    <label htmlFor={`status-${item.id}`}>
+                      <strong>Status:</strong>
+                    </label>
+                    <select
+                      id={`status-${item.id}`}
+                      value={item.status}
+                      onChange={(e) =>
+                        handleStatusChange(item.id, e.target.value as Status)
+                      }
+                    >
+                      <option value="inbox">Inbox</option>
+                      <option value="active">Active</option>
+                      <option value="paused">Paused</option>
+                      <option value="done">Done</option>
+                    </select>
+                  </div>
 
                   <button
                     type="button"
