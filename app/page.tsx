@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { supabase } from "../lib/supabase"
 
 type Category = "marketing" | "product" | "research" | "learning"
 type Status = "inbox" | "active" | "paused" | "done"
@@ -11,30 +12,8 @@ type InboxItem = {
   title: string
   category: Category
   status: Status
+  created_at?: string
 }
-
-const STORAGE_KEY = "operator-inbox-items"
-
-const defaultItems: InboxItem[] = [
-  {
-    id: 1,
-    title: "Audit personal website ideas",
-    category: "product",
-    status: "active",
-  },
-  {
-    id: 2,
-    title: "Outline SEO tool concepts",
-    category: "marketing",
-    status: "inbox",
-  },
-  {
-    id: 3,
-    title: "Review AI workflow patterns",
-    category: "research",
-    status: "paused",
-  },
-]
 
 export default function HomePage() {
   const [title, setTitle] = useState("")
@@ -42,65 +21,102 @@ export default function HomePage() {
   const [status, setStatus] = useState<Status>("inbox")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [items, setItems] = useState<InboxItem[]>([])
-  const [hasLoadedItems, setHasLoadedItems] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState("")
 
   useEffect(() => {
-    const savedItems = window.localStorage.getItem(STORAGE_KEY)
+    async function loadItems() {
+      setIsLoading(true)
+      setErrorMessage("")
 
-    if (!savedItems) {
-      setItems(defaultItems)
-      setHasLoadedItems(true)
-      return
+      const { data, error } = await supabase
+        .from("inbox_items")
+        .select("*")
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        setErrorMessage("Failed to load items.")
+        setIsLoading(false)
+        return
+      }
+
+      setItems((data as InboxItem[]) ?? [])
+      setIsLoading(false)
     }
 
-    try {
-      const parsedItems = JSON.parse(savedItems) as InboxItem[]
-      setItems(parsedItems)
-    } catch {
-      setItems(defaultItems)
-    }
-
-    setHasLoadedItems(true)
+    loadItems()
   }, [])
 
-  useEffect(() => {
-    if (!hasLoadedItems) return
-
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
-  }, [items, hasLoadedItems])
-
-  function handleAddItem(e: React.FormEvent<HTMLFormElement>) {
+  async function handleAddItem(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
 
     const trimmedTitle = title.trim()
 
     if (!trimmedTitle) return
 
-    const newItem: InboxItem = {
-      id: Date.now(),
-      title: trimmedTitle,
-      category,
-      status,
+    setIsSubmitting(true)
+    setErrorMessage("")
+
+    const { data, error } = await supabase
+      .from("inbox_items")
+      .insert([
+        {
+          title: trimmedTitle,
+          category,
+          status,
+        },
+      ])
+      .select()
+      .single()
+
+    if (error) {
+      setErrorMessage("Failed to add item.")
+      setIsSubmitting(false)
+      return
     }
 
-    setItems((currentItems) => [newItem, ...currentItems])
+    setItems((currentItems) => [data as InboxItem, ...currentItems])
     setTitle("")
     setCategory("marketing")
     setStatus("inbox")
+    setIsSubmitting(false)
   }
 
-  function handleDeleteItem(id: number) {
-    setItems((currentItems) =>
-      currentItems.filter((item) => item.id !== id)
-    )
+  async function handleDeleteItem(id: number) {
+    setErrorMessage("")
+
+    const previousItems = items
+    setItems((currentItems) => currentItems.filter((item) => item.id !== id))
+
+    const { error } = await supabase.from("inbox_items").delete().eq("id", id)
+
+    if (error) {
+      setItems(previousItems)
+      setErrorMessage("Failed to delete item.")
+    }
   }
 
-  function handleStatusChange(id: number, nextStatus: Status) {
+  async function handleStatusChange(id: number, nextStatus: Status) {
+    setErrorMessage("")
+
+    const previousItems = items
+
     setItems((currentItems) =>
       currentItems.map((item) =>
         item.id === id ? { ...item, status: nextStatus } : item
       )
     )
+
+    const { error } = await supabase
+      .from("inbox_items")
+      .update({ status: nextStatus })
+      .eq("id", id)
+
+    if (error) {
+      setItems(previousItems)
+      setErrorMessage("Failed to update status.")
+    }
   }
 
   const filteredItems = useMemo(() => {
@@ -162,7 +178,9 @@ export default function HomePage() {
               </select>
             </div>
 
-            <button type="submit">Add item</button>
+            <button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Adding..." : "Add item"}
+            </button>
           </form>
         </section>
 
@@ -188,8 +206,10 @@ export default function HomePage() {
             </div>
           </div>
 
+          {errorMessage ? <p>{errorMessage}</p> : null}
+
           <div className="itemList">
-            {!hasLoadedItems ? (
+            {isLoading ? (
               <p>Loading items...</p>
             ) : filteredItems.length === 0 ? (
               <p>No items found for this filter.</p>
